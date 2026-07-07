@@ -1,0 +1,7 @@
+{
+  "uuid": "wattscream@derlinke.github.io",
+  "name": "wattScream",
+  "description": "Zeigt den aktuellen Watt-Verbrauch des Garagen-Setups in der Taskleiste.",
+  "icon": "power-profile-power-saver-symbolic",
+  "max-instances": 1
+}

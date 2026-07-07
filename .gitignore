@@ -1,0 +1,22 @@
+# Git-Ausschlüsse (Mandated)
+GEMINI.md
+.antigravity/
+.antigravity-ide/
+.antigravitycli/
+.vscode/
+*.code-workspace
+build/
+dist/
+/tmp/
+*.bak
+
+# Projekt-Spezifisch
+.venv/
+__pycache__/
+*.pyc
+config.json
+*.spec
+*_temp/
+.cache/
+*.AppImage
+*.deb

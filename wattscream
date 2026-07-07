@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""
+wattScream – CLI & Installer
+Author: Dan & Gemini CLI
+Version: 0.1.0
+License: MIT
+"""
+import sys
+import argparse
+import subprocess
+import os
+import shutil
+import json
+import time
+from datetime import datetime
+
+# --- INITIALISIERUNG ---
+SCRIPTNAME = "wattScream"
+VERSION = "0.1.0"
+REPO_URL = "https://github.com/DerLinke/WattScream"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def check_module(name):
+    try:
+        import importlib.util
+        return importlib.util.find_spec(name) is not None
+    except Exception:
+        return False
+
+def console_print(text):
+    if check_module("rich"):
+        from rich.console import Console
+        Console().print(text)
+    else:
+        # Simple fallback parsing basic rich tags
+        clean_text = text.replace("[bold green]", "").replace("[/bold green]", "") \
+                         .replace("[green]", "").replace("[/green]", "") \
+                         .replace("[yellow]", "").replace("[/yellow]", "") \
+                         .replace("[bold red]", "").replace("[/bold red]", "") \
+                         .replace("[red]", "").replace("[/red]", "") \
+                         .replace("[bold white]", "").replace("[/bold white]", "") \
+                         .replace("[dim]", "").replace("[/dim]", "") \
+                         .replace("[blue]", "").replace("[/blue]", "") \
+                         .replace("[blue underline]", "").replace("[/blue underline]", "") \
+                         .replace("[/]", "")
+        print(clean_text)
+
+def show_banner():
+    # Definition der Branding-Farben via Rich-Tags (Horizontaler Verlauf)
+    C_L0 = "[rgb(255,0,0)]"
+    C_L1 = "[rgb(245,0,10)]"
+    C_L5 = "[rgb(208,0,47)]"
+    C_L6 = "[rgb(198,0,57)]"
+    C_L10 = "[rgb(161,0,94)]"
+    C_L11 = "[rgb(151,0,104)]"
+
+    C_R17 = "[rgb(96,0,159)]"
+    C_R18 = "[rgb(86,0,169)]"
+    C_R19 = "[rgb(76,0,179)]"
+    C_R20 = "[rgb(66,0,189)]"
+    C_R21 = "[rgb(56,0,199)]"
+    C_R22 = "[rgb(47,0,208)]"
+    C_R26 = "[rgb(9,0,246)]"
+    C_R27 = "[rgb(0,0,255)]"
+
+    console_print(f"          {C_L10}█{C_L11}█[/]     {C_R17}█{C_R18}█{C_R19}█{C_R20}█{C_R21}█[/]")
+    console_print(f"     {C_L5}█{C_L6}█[/]                    {C_R26}█{C_R27}█[/]")
+    console_print(f"{C_L0}█{C_L1}█[/]                {C_R18}█{C_R19}█{C_R20}█{C_R21}█{C_R22}█[/] [bold white]{SCRIPTNAME} v{VERSION}[/bold white]")
+    console_print(f"     {C_L5}█{C_L6}█[/]                    {C_R26}█{C_R27}█[/]")
+    console_print(f"          {C_L10}█{C_L11}█[/]     {C_R17}█{C_R18}█{C_R19}█{C_R20}█{C_R21}█[/]\n")
+
+def show_footer():
+    console_print(f"\n[blue]----------------------------------------------------[/]")
+    console_print(f"  [bold white]{SCRIPTNAME} v{VERSION}[/bold white]")
+    console_print(f"  [dim]Web:[/][blue underline] https://derlinke.github.io/[/]")
+    console_print(f"  [dim]Git:[/][blue underline] {REPO_URL}[/]")
+    
+    C_L0 = "[rgb(255,0,0)]"
+    C_L10 = "[rgb(161,0,94)]"
+    C_R27 = "[rgb(0,0,255)]"
+    console_print(f"  {C_L0}██[/]{C_L10}██[/]{C_R27}██[/]")
+    console_print(f"[blue]====================================================[/]\n")
+
+def get_telemetry():
+    # Try system telemetry first, then user telemetry
+    paths = [
+        "/run/wattscream.json",
+        f"/run/user/{os.getuid()}/wattscream.json"
+    ]
+    for path in paths:
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    return json.load(f), path
+            except Exception:
+                pass
+    return None, None
+
+def show_status():
+    data, path = get_telemetry()
+    if not data:
+        console_print("[bold red]Fehler: Daemon läuft nicht oder exportiert keine Telemetrie.[/bold red]")
+        console_print("[yellow]Bitte führe 'sudo wattscream --setup' aus, um den Daemon zu aktivieren.[/yellow]")
+        return
+        
+    current_w = data.get("current_w", 0.0)
+    today_wh = data.get("today_wh", 0.0)
+    boot_wh = data.get("boot_wh", 0.0)
+    last_updated = data.get("last_updated", 0.0)
+    
+    age = time.time() - last_updated
+    
+    if check_module("rich"):
+        from rich.table import Table
+        table = Table(title="wattScream Telemetrie-Status", style="bold blue", box=None)
+        table.add_column("Metrik", style="bold white")
+        table.add_column("Wert", style="green")
+        
+        table.add_row("Aktueller Verbrauch", f"{current_w:.2f} W")
+        table.add_row("Verbrauch heute", f"{today_wh:.2f} Wh ({today_wh/1000.0:.4f} kWh)")
+        table.add_row("Verbrauch seit Boot", f"{boot_wh:.2f} Wh ({boot_wh/1000.0:.4f} kWh)")
+        table.add_row("Daten-Alter", f"{age:.1f} Sekunden")
+        table.add_row("Quelle (Telemetry File)", path)
+        
+        console_print("")
+        from rich.console import Console
+        Console().print(table)
+    else:
+        print("\n--- wattScream Telemetrie-Status ---")
+        print(f"Aktueller Verbrauch: {current_w:.2f} W")
+        print(f"Verbrauch heute: {today_wh:.2f} Wh ({today_wh/1000.0:.4f} kWh)")
+        print(f"Verbrauch seit Boot: {boot_wh:.2f} Wh ({boot_wh/1000.0:.4f} kWh)")
+        print(f"Daten-Alter: {age:.1f} Sek")
+        print(f"Telemetry File: {path}")
+        
+    show_footer()
+
+def setup():
+    is_root = (os.getuid() == 0)
+    if not is_root:
+        console_print("[bold red]Fehler: --setup muss als root (mit sudo) ausgeführt werden, um den Daemon zu installieren.[/bold red]")
+        console_print("[yellow]Bitte führe aus: sudo ./wattscream --setup[/yellow]")
+        return
+
+    sudo_user = os.environ.get("SUDO_USER")
+    if not sudo_user:
+        console_print("[yellow]Warnung: SUDO_USER nicht erkannt. Desktop-Erweiterungen werden für den aktuellen User installiert.[/yellow]")
+        real_user = "root"
+        home_dir = "/root"
+    else:
+        real_user = sudo_user
+        home_dir = os.path.expanduser(f"~{sudo_user}")
+
+    console_print(f"[bold green]Richte wattScream für System & User '{real_user}' ein...[/bold green]")
+
+    # 1. Daemon kopieren
+    src_daemon = os.path.join(BASE_DIR, "src", "wattscream_daemon.py")
+    dest_daemon = "/usr/local/bin/wattscream-daemon"
+    shutil.copy(src_daemon, dest_daemon)
+    os.chmod(dest_daemon, 0o755)
+    console_print(f"  [green]✔[/] Daemon installiert in {dest_daemon}")
+
+    # 2. Config Ordner & Default Config erstellen
+    os.makedirs("/etc/wattscream", exist_ok=True)
+    config_file = "/etc/wattscream/config.json"
+    if not os.path.exists(config_file):
+        default_config = {
+            "source": "auto",
+            "command": "",
+            "file_path": "",
+            "poll_interval_sec": 2
+        }
+        with open(config_file, "w") as f:
+            json.dump(default_config, f, indent=2)
+        console_print(f"  [green]✔[/] Standard-Konfiguration erstellt in {config_file}")
+
+    # 3. Systemd Service schreiben
+    service_content = """[Unit]
+Description=wattScream Power Monitor Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/wattscream-daemon
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+"""
+    service_file = "/etc/systemd/system/wattscream-daemon.service"
+    with open(service_file, "w") as f:
+        f.write(service_content)
+    console_print(f"  [green]✔[/] Systemd-Service erstellt in {service_file}")
+
+    # Daemon neu laden und starten
+    subprocess.run(["systemctl", "daemon-reload"])
+    subprocess.run(["systemctl", "enable", "wattscream-daemon"])
+    subprocess.run(["systemctl", "restart", "wattscream-daemon"])
+    console_print("  [green]✔[/] Systemd-Service aktiviert und gestartet")
+
+    # 4. GNOME Shell Extension kopieren
+    gnome_ext_src = os.path.join(BASE_DIR, "extensions", "gnome")
+    gnome_ext_dest = os.path.join(home_dir, ".local/share/gnome-shell/extensions/wattscream@derlinke.github.io")
+    if os.path.exists(gnome_ext_src):
+        if os.path.exists(gnome_ext_dest):
+            shutil.rmtree(gnome_ext_dest)
+        shutil.copytree(gnome_ext_src, gnome_ext_dest)
+        # Owner anpassen
+        if sudo_user:
+            shutil.chown(gnome_ext_dest, user=sudo_user, group=sudo_user)
+            for root, dirs, files in os.walk(gnome_ext_dest):
+                for d in dirs:
+                    shutil.chown(os.path.join(root, d), user=sudo_user, group=sudo_user)
+                for f in files:
+                    shutil.chown(os.path.join(root, f), user=sudo_user, group=sudo_user)
+        console_print(f"  [green]✔[/] GNOME Extension installiert in {gnome_ext_dest}")
+
+    # 5. Cinnamon Applet kopieren
+    cinnamon_src = os.path.join(BASE_DIR, "extensions", "cinnamon")
+    cinnamon_dest = os.path.join(home_dir, ".local/share/cinnamon/applets/wattscream@derlinke.github.io")
+    if os.path.exists(cinnamon_src):
+        if os.path.exists(cinnamon_dest):
+            shutil.rmtree(cinnamon_dest)
+        shutil.copytree(cinnamon_src, cinnamon_dest)
+        # Owner anpassen
+        if sudo_user:
+            shutil.chown(cinnamon_dest, user=sudo_user, group=sudo_user)
+            for root, dirs, files in os.walk(cinnamon_dest):
+                for d in dirs:
+                    shutil.chown(os.path.join(root, d), user=sudo_user, group=sudo_user)
+                for f in files:
+                    shutil.chown(os.path.join(root, f), user=sudo_user, group=sudo_user)
+        console_print(f"  [green]✔[/] Cinnamon Applet installiert in {cinnamon_dest}")
+
+    # GNOME Extension aktivieren falls möglich
+    if sudo_user:
+        try:
+            # Als real_user ausführen
+            subprocess.run(["sudo", "-u", sudo_user, "gnome-extensions", "enable", "wattscream@derlinke.github.io"], capture_output=True)
+            console_print("  [green]✔[/] GNOME Extension aktiviert")
+        except Exception:
+            pass
+
+    console_print("\n[bold green]Installation erfolgreich abgeschlossen![/bold green]")
+    console_print("[yellow]Hinweis für Cinnamon-Nutzer:[/yellow] Bitte füge das Applet 'wattScream' über die Cinnamon-Applet-Einstellungen deiner Taskleiste hinzu.")
+    show_footer()
+
+def main():
+    show_banner()
+    parser = argparse.ArgumentParser(description="wattScream – Power Monitor Installer & status CLI")
+    parser.add_argument("--status", action="store_true", help="Zeigt die aktuelle Telemetrie an")
+    parser.add_argument("--setup", action="store_true", help="Installiert den Daemon und die Erweiterungen")
+    
+    args = parser.parse_args()
+    if args.status:
+        show_status()
+    elif args.setup:
+        setup()
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()

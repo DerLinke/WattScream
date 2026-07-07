@@ -1,0 +1,7 @@
+{
+  "uuid": "wattscream@derlinke.github.io",
+  "name": "wattScream",
+  "description": "Shows current power consumption in Watts, daily sum, and since-boot sum in the panel.",
+  "shell-version": [ "45", "46", "47", "48", "49" ],
+  "url": "https://derlinke.github.io/"
+}
